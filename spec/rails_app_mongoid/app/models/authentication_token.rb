@@ -8,5 +8,6 @@ class AuthenticationToken
   field :ip_address, type: String
   field :user_agent, type: String
   field :expires_in, type: Integer, default: 0
+  field :expires_at, type: Time
   field :metadata_attr1, type: String
 end

@@ -67,9 +67,16 @@ module Devise
       end
 
       def unexpired?(token)
+        return false if past_fixed_expiry?(token)
         return true if expiration_disabled?(token)
 
         Time.current <= token.last_used_at + token.expires_in
+      end
+
+      def past_fixed_expiry?(token)
+        token.respond_to?(:expires_at) &&
+          token.expires_at.present? &&
+          Time.current > token.expires_at
       end
 
       def touch_token_interval(token)

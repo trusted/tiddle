@@ -331,4 +331,118 @@ describe "Authentication using Tiddle strategy", type: :request do
       end
     end
   end
+
+  context "when token has expires_at set up" do
+    let(:headers) do
+      { "X-USER-EMAIL" => "test@example.com", "X-USER-TOKEN" => @token }
+    end
+
+    before do
+      @user = User.create!(email: "test@example.com", password: "12345678")
+    end
+
+    context "and expires_at is in the future" do
+      before do
+        @token = Tiddle.create_and_return_token(
+          @user, FakeRequest.new, metadata: { expires_at: 1.hour.from_now }
+        )
+      end
+
+      it "allows to access endpoints which require authentication" do
+        get secrets_path, headers: headers
+        expect(response.status).to eq 200
+      end
+    end
+
+    context "and expires_at is in the past" do
+      before do
+        @token = Tiddle.create_and_return_token(
+          @user, FakeRequest.new, metadata: { expires_at: 1.minute.ago }
+        )
+      end
+
+      it "does not allow to access endpoints which require authentication" do
+        get secrets_path, headers: headers
+        expect(response.status).to eq 401
+      end
+
+      it "does not update last_used_at field" do
+        @user.authentication_tokens.last.update_attribute(:last_used_at, 2.hours.ago)
+
+        expect do
+          get secrets_path, headers: headers
+        end.not_to(change { @user.authentication_tokens.last.reload.last_used_at })
+      end
+    end
+
+    context "and expires_at is in the past while expires_in has not passed" do
+      before do
+        @token = Tiddle.create_and_return_token(
+          @user, FakeRequest.new, expires_in: 1.week, metadata: { expires_at: 1.minute.ago }
+        )
+      end
+
+      it "does not allow to access endpoints which require authentication" do
+        get secrets_path, headers: headers
+        expect(response.status).to eq 401
+      end
+    end
+
+    context "and expires_at is in the future while expires_in has passed" do
+      before do
+        @token = Tiddle.create_and_return_token(
+          @user, FakeRequest.new, expires_in: 1.week, metadata: { expires_at: 1.month.from_now }
+        )
+        @user.authentication_tokens.last.update_attribute(:last_used_at, 2.weeks.ago)
+      end
+
+      it "does not allow to access endpoints which require authentication" do
+        get secrets_path, headers: headers
+        expect(response.status).to eq 401
+      end
+    end
+
+    context "and expires_at is nil" do
+      before do
+        @token = Tiddle.create_and_return_token(
+          @user, FakeRequest.new, expires_in: 1.week, metadata: { expires_at: nil }
+        )
+      end
+
+      it "allows to access endpoints which require authentication" do
+        get secrets_path, headers: headers
+        expect(response.status).to eq 200
+      end
+
+      it "still expires the token after inactivity" do
+        @user.authentication_tokens.last.update_attribute(:last_used_at, 2.weeks.ago)
+
+        get secrets_path, headers: headers
+        expect(response.status).to eq 401
+      end
+    end
+  end
+
+  describe "token model without an expires_at column" do
+    let(:strategy) { Devise::Strategies::TokenAuthenticatable.new({}) }
+    let(:token_class) { Struct.new(:last_used_at, :expires_in) }
+
+    it "treats a token without expires_in as unexpired" do
+      token = token_class.new(1.year.ago, 0)
+
+      expect(strategy.send(:unexpired?, token)).to be(true)
+    end
+
+    it "treats a token used within expires_in as unexpired" do
+      token = token_class.new(1.hour.ago, 1.day)
+
+      expect(strategy.send(:unexpired?, token)).to be(true)
+    end
+
+    it "treats a token not used within expires_in as expired" do
+      token = token_class.new(2.days.ago, 1.day)
+
+      expect(strategy.send(:unexpired?, token)).to be(false)
+    end
+  end
 end

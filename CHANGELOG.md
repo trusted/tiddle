@@ -1,4 +1,6 @@
-### [Unreleased]
+### 1.9.0
+
+Reject a token after its `expires_at`, when the token model has that column and it is set. The inactivity expiry from `expires_in` still applies, and whichever comes first ends the session
 
 Minimum supported ruby version is now 3.3
 

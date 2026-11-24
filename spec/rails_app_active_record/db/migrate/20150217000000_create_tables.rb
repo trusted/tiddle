@@ -53,6 +53,7 @@ class CreateTables < ActiveRecord::Migration::Current
       t.references :authenticatable, null: false, polymorphic: true
       t.datetime :last_used_at, null: false
       t.integer :expires_in, null: false, default: 0
+      t.datetime :expires_at
       t.string :ip_address
       t.string :user_agent
       t.string :metadata_attr1

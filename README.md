@@ -109,3 +109,9 @@ Tokens are expiring after certain period of inactivity. This behavior is optiona
 ```ruby
 token = Tiddle.create_and_return_token(user, request, expires_in: 1.month)
 ```
+
+To end a token at a fixed time however much it is used, add a nullable `expires_at` datetime column to the token model and pass it as metadata. The token is rejected once either `expires_at` or the inactivity period from `expires_in` has passed:
+
+```ruby
+token = Tiddle.create_and_return_token(user, request, expires_in: 1.month, metadata: { expires_at: 1.day.from_now })
+```
